@@ -3,14 +3,16 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'api_client.dart';
+import 'mail_preferences.dart';
 import 'mail_store.dart';
 
 /// Keeps iMail attached to the Mailbox-DNS realtime mail socket while the app
-/// is in the foreground. HTTP polling in MailStore remains as a safety net, so
-/// temporary socket/network failures do not make the mailbox stale.
+/// is active. HTTP polling in MailStore remains as a safety net, so temporary
+/// socket/network failures do not make the mailbox stale.
 class MailRealtimeBridge extends StatefulWidget {
   const MailRealtimeBridge({super.key, required this.child});
 
@@ -22,6 +24,8 @@ class MailRealtimeBridge extends StatefulWidget {
 
 class _MailRealtimeBridgeState extends State<MailRealtimeBridge>
     with WidgetsBindingObserver {
+  final _preferences = MailPreferences();
+
   WebSocket? _socket;
   StreamSubscription<dynamic>? _subscription;
   Timer? _reconnectTimer;
@@ -90,7 +94,8 @@ class _MailRealtimeBridgeState extends State<MailRealtimeBridge>
     final api = context.read<IMailApiClient>();
     if (!store.authenticated || !api.hasSessionCookie) return;
 
-    final nextKey = '${store.address}|${api.isExternalSession ? 'external' : 'internal'}';
+    final nextKey =
+        '${store.address}|${api.isExternalSession ? 'external' : 'internal'}';
     if (_accountKey != nextKey) {
       _cursor = r'$';
       _accountKey = nextKey;
@@ -121,7 +126,9 @@ class _MailRealtimeBridgeState extends State<MailRealtimeBridge>
     if (!mounted || key != _accountKey) return;
     Map<String, dynamic>? event;
     try {
-      final decoded = jsonDecode(raw is String ? raw : utf8.decode(raw as List<int>));
+      final decoded = jsonDecode(
+        raw is String ? raw : utf8.decode(raw as List<int>),
+      );
       if (decoded is Map) event = Map<String, dynamic>.from(decoded);
     } catch (_) {
       return;
@@ -133,12 +140,25 @@ class _MailRealtimeBridgeState extends State<MailRealtimeBridge>
 
     final type = event['type']?.toString() ?? '';
     if (type == 'mailbox.changed') {
+      unawaited(_alertIfEnabled());
       _refreshDebounce?.cancel();
       _refreshDebounce = Timer(const Duration(milliseconds: 300), () {
         if (!mounted || key != _accountKey) return;
         final store = context.read<MailStore>();
         if (store.authenticated) unawaited(store.refresh());
       });
+    }
+  }
+
+  Future<void> _alertIfEnabled() async {
+    if (!_active) return;
+    if (!await _preferences.notificationSound()) return;
+    try {
+      await SystemSound.play(SystemSoundType.alert);
+      await HapticFeedback.lightImpact();
+    } catch (_) {
+      // A device can legally suppress system sound/haptics. Mail refresh must
+      // never depend on notification feedback succeeding.
     }
   }
 
@@ -156,7 +176,8 @@ class _MailRealtimeBridgeState extends State<MailRealtimeBridge>
       }
       return;
     }
-    final nextKey = '${store.address}|${api.isExternalSession ? 'external' : 'internal'}';
+    final nextKey =
+        '${store.address}|${api.isExternalSession ? 'external' : 'internal'}';
     if (_accountKey != nextKey) {
       unawaited(_disconnect());
       _accountKey = nextKey;
