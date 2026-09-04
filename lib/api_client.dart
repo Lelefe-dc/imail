@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -34,35 +35,45 @@ class IMailApiClient {
 
   String? _cookie;
   String? _cachedAddress;
+  bool _externalSession = false;
 
   static const _cookieStorageKey = 'imail_webmail_session_cookie';
   static const _addressStorageKey = 'imail_webmail_address';
+  static const _sessionKindStorageKey = 'imail_webmail_session_kind';
 
   String? get cachedAddress => _cachedAddress;
+  bool get isExternalSession => _externalSession;
+  bool get hasSessionCookie => _cookie != null && _cookie!.isNotEmpty;
+
+  String get _mailBase => _externalSession ? '/webmail/external' : '/webmail';
 
   Future<bool> restoreCookie() async {
     final values = await Future.wait<String?>([
       _storage.read(key: _cookieStorageKey),
       _storage.read(key: _addressStorageKey),
+      _storage.read(key: _sessionKindStorageKey),
     ]);
     _cookie = values[0];
     _cachedAddress = values[1];
-    return _cookie != null && _cookie!.isNotEmpty;
+    _externalSession = values[2] == 'external';
+    return hasSessionCookie;
   }
 
   Future<void> clearLocalSession() async {
     _cookie = null;
     _cachedAddress = null;
+    _externalSession = false;
     await Future.wait<void>([
       _storage.delete(key: _cookieStorageKey),
       _storage.delete(key: _addressStorageKey),
+      _storage.delete(key: _sessionKindStorageKey),
     ]);
   }
 
   Map<String, String> _headers({bool jsonBody = false}) => {
         'Accept': 'application/json',
         if (jsonBody) 'Content-Type': 'application/json',
-        if (_cookie != null && _cookie!.isNotEmpty) 'Cookie': _cookie!,
+        if (hasSessionCookie) 'Cookie': _cookie!,
       };
 
   Uri _uri(String path, [Map<String, String?>? query]) {
@@ -75,13 +86,10 @@ class IMailApiClient {
     );
   }
 
-  dynamic _decode(http.Response response, {bool allowEmpty = false}) {
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      if (allowEmpty && response.body.trim().isEmpty) return null;
-      if (response.body.trim().isEmpty) return <String, dynamic>{};
-      return jsonDecode(response.body);
-    }
+  Uri _mailUri(String suffix, [Map<String, String?>? query]) =>
+      _uri('$_mailBase$suffix', query);
 
+  ApiException _responseException(http.Response response) {
     String message = 'Request failed (${response.statusCode})';
     try {
       final decoded = jsonDecode(response.body);
@@ -89,7 +97,16 @@ class IMailApiClient {
         message = decoded['detail'].toString();
       }
     } catch (_) {}
-    throw ApiException(message, statusCode: response.statusCode);
+    return ApiException(message, statusCode: response.statusCode);
+  }
+
+  dynamic _decode(http.Response response, {bool allowEmpty = false}) {
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (allowEmpty && response.body.trim().isEmpty) return null;
+      if (response.body.trim().isEmpty) return <String, dynamic>{};
+      return jsonDecode(response.body);
+    }
+    throw _responseException(response);
   }
 
   void _checkBinary(http.Response response) {
@@ -104,14 +121,12 @@ class IMailApiClient {
     throw ApiException(message, statusCode: response.statusCode);
   }
 
-  Future<String> login(String address, String password) async {
-    final normalized = address.trim().toLowerCase();
-    final response = await _client.post(
-      _uri('/webmail/session'),
-      headers: _headers(jsonBody: true),
-      body: jsonEncode({'address': normalized, 'password': password}),
-    );
-    final decoded = Map<String, dynamic>.from(_decode(response));
+  Future<String> _captureSession(
+    http.Response response,
+    Map<String, dynamic> decoded, {
+    required String fallbackAddress,
+    required bool external,
+  }) async {
     final rawSetCookie = response.headers['set-cookie'];
     if (rawSetCookie == null || rawSetCookie.isEmpty) {
       throw ApiException(
@@ -120,17 +135,108 @@ class IMailApiClient {
     }
 
     _cookie = rawSetCookie.split(';').first.trim();
-    _cachedAddress = decoded['address']?.toString() ?? normalized;
+    _cachedAddress = decoded['address']?.toString() ?? fallbackAddress;
+    _externalSession = external;
     await Future.wait<void>([
       _storage.write(key: _cookieStorageKey, value: _cookie),
       _storage.write(key: _addressStorageKey, value: _cachedAddress),
+      _storage.write(
+        key: _sessionKindStorageKey,
+        value: external ? 'external' : 'internal',
+      ),
     ]);
     return _cachedAddress!;
   }
 
+  Future<String> login(String address, String password) async {
+    final normalized = address.trim().toLowerCase();
+
+    // Hosted Ithute mailboxes always win first.
+    final internal = await _client.post(
+      _uri('/webmail/session'),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode({'address': normalized, 'password': password}),
+    );
+    if (internal.statusCode >= 200 && internal.statusCode < 300) {
+      final decoded = Map<String, dynamic>.from(_decode(internal));
+      return _captureSession(
+        internal,
+        decoded,
+        fallbackAddress: normalized,
+        external: false,
+      );
+    }
+
+    final internalError = _responseException(internal);
+    if (internal.statusCode != 401 && internal.statusCode != 404) {
+      throw internalError;
+    }
+
+    // A mailbox that completed external setup before is now a normal iMail
+    // login: the backend uses its remembered verified settings and performs
+    // one direct authentication instead of rediscovering IMAP/SMTP servers.
+    final knownExternal = await _client.post(
+      _uri('/webmail/external/known-session'),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode({'address': normalized, 'password': password}),
+    );
+    if (knownExternal.statusCode >= 200 && knownExternal.statusCode < 300) {
+      final decoded = Map<String, dynamic>.from(_decode(knownExternal));
+      return _captureSession(
+        knownExternal,
+        decoded,
+        fallbackAddress: normalized,
+        external: true,
+      );
+    }
+
+    // 404 means this address has never completed external setup. Keep the
+    // ordinary hosted-mailbox error so the UI can offer "Other email account".
+    if (knownExternal.statusCode == 404) throw internalError;
+    throw _responseException(knownExternal);
+  }
+
+  Future<String> registerExternalAccount({
+    required String address,
+    required String password,
+    required String username,
+    required String displayName,
+    required String imapHost,
+    required int imapPort,
+    required String imapSecurity,
+    required String smtpHost,
+    required int smtpPort,
+    required String smtpSecurity,
+  }) async {
+    final normalized = address.trim().toLowerCase();
+    final response = await _client.post(
+      _uri('/webmail/external/register-session'),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode({
+        'address': normalized,
+        'password': password,
+        'username': username.trim().isEmpty ? normalized : username.trim(),
+        'display_name': displayName.trim(),
+        'imap_host': imapHost.trim(),
+        'imap_port': imapPort,
+        'imap_security': imapSecurity,
+        'smtp_host': smtpHost.trim(),
+        'smtp_port': smtpPort,
+        'smtp_security': smtpSecurity,
+      }),
+    );
+    final decoded = Map<String, dynamic>.from(_decode(response));
+    return _captureSession(
+      response,
+      decoded,
+      fallbackAddress: normalized,
+      external: true,
+    );
+  }
+
   Future<String> sessionAddress() async {
     final response = await _client.get(
-      _uri('/webmail/session'),
+      _mailUri('/session'),
       headers: _headers(),
     );
     final decoded = Map<String, dynamic>.from(_decode(response));
@@ -144,16 +250,38 @@ class IMailApiClient {
 
   Future<void> logout() async {
     try {
-      await _client.delete(_uri('/webmail/session'), headers: _headers());
+      await _client.delete(_mailUri('/session'), headers: _headers());
     } finally {
       await clearLocalSession();
     }
   }
 
+  Uri realtimeSocketUri({String lastEventId = r'$'}) {
+    final httpUri = Uri.parse(baseUrl);
+    final socketBase = httpUri.replace(
+      scheme: httpUri.scheme == 'https' ? 'wss' : 'ws',
+      path: '${httpUri.path}$_mailBase/events/ws',
+      queryParameters: {'last_event_id': lastEventId},
+    );
+    return socketBase;
+  }
+
+  Future<WebSocket> connectRealtime({String lastEventId = r'$'}) async {
+    if (!hasSessionCookie) {
+      throw ApiException('No mailbox session is available for realtime mail.');
+    }
+    final socket = await WebSocket.connect(
+      realtimeSocketUri(lastEventId: lastEventId).toString(),
+      headers: {'Cookie': _cookie!},
+    ).timeout(const Duration(seconds: 8));
+    socket.pingInterval = const Duration(seconds: 25);
+    return socket;
+  }
+
   Future<List<MailFolder>> folders() async {
     final responses = await Future.wait<http.Response>([
-      _client.get(_uri('/webmail/folders'), headers: _headers()),
-      _client.get(_uri('/webmail/folder-counts'), headers: _headers()),
+      _client.get(_mailUri('/folders'), headers: _headers()),
+      _client.get(_mailUri('/folder-counts'), headers: _headers()),
     ]);
 
     final folderJson = Map<String, dynamic>.from(_decode(responses[0]));
@@ -195,7 +323,7 @@ class IMailApiClient {
     int offset = 0,
   }) async {
     final response = await _client.get(
-      _uri('/webmail/messages', {
+      _mailUri('/messages', {
         'folder': folder,
         'limit': '$limit',
         'offset': '$offset',
@@ -212,7 +340,7 @@ class IMailApiClient {
 
   Future<MailMessage> message(String uid, {String folder = 'INBOX'}) async {
     final response = await _client.get(
-      _uri('/webmail/messages/$uid', {'folder': folder}),
+      _mailUri('/messages/$uid', {'folder': folder}),
       headers: _headers(),
     );
     return MailMessage.fromJson(
@@ -228,7 +356,7 @@ class IMailApiClient {
     bool? answered,
   }) async {
     final response = await _client.patch(
-      _uri('/webmail/messages/$uid/flags', {'folder': folder}),
+      _mailUri('/messages/$uid/flags', {'folder': folder}),
       headers: _headers(jsonBody: true),
       body: jsonEncode({
         'seen': seen,
@@ -243,7 +371,7 @@ class IMailApiClient {
 
   Future<void> deleteMessage(String uid, {required String folder}) async {
     final response = await _client.delete(
-      _uri('/webmail/messages/$uid', {'folder': folder}),
+      _mailUri('/messages/$uid', {'folder': folder}),
       headers: _headers(),
     );
     _decode(response);
@@ -255,7 +383,7 @@ class IMailApiClient {
     required String destination,
   }) async {
     final response = await _client.post(
-      _uri('/webmail/messages/$uid/move', {'folder': folder}),
+      _mailUri('/messages/$uid/move', {'folder': folder}),
       headers: _headers(jsonBody: true),
       body: jsonEncode({'destination': destination}),
     );
@@ -268,7 +396,7 @@ class IMailApiClient {
     required String folder,
   }) async {
     final response = await _client.get(
-      _uri('/webmail/messages/$uid/attachments/$index', {'folder': folder}),
+      _mailUri('/messages/$uid/attachments/$index', {'folder': folder}),
       headers: _headers(),
     );
     _checkBinary(response);
@@ -286,7 +414,7 @@ class IMailApiClient {
     String references = '',
   }) async {
     final response = await _client.post(
-      _uri('/webmail/send'),
+      _mailUri('/send'),
       headers: _headers(jsonBody: true),
       body: jsonEncode({
         'to': to,
@@ -317,7 +445,7 @@ class IMailApiClient {
     String bodyText = '',
   }) async {
     final response = await _client.post(
-      _uri('/webmail/drafts'),
+      _mailUri('/drafts'),
       headers: _headers(jsonBody: true),
       body: jsonEncode({
         'to': to,
@@ -331,7 +459,7 @@ class IMailApiClient {
 
   Future<Map<String, String>> identity() async {
     final response = await _client.get(
-      _uri('/webmail/identity'),
+      _mailUri('/identity'),
       headers: _headers(),
     );
     final decoded = Map<String, dynamic>.from(_decode(response));
