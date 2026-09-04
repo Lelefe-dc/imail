@@ -99,7 +99,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                                 const SizedBox(height: 8),
                                 const Text(
-                                  'Use an Ithute Mail account, or connect another standard IMAP/SMTP mailbox.',
+                                  'Open an Ithute mailbox or any email account that has already been connected to iMail.',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     color: Color(0xFF687078),
@@ -115,7 +115,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   textInputAction: TextInputAction.next,
                                   autofillHints: const [AutofillHints.email],
                                   decoration: const InputDecoration(
-                                    labelText: 'Ithute email address',
+                                    labelText: 'Email address',
                                     hintText: 'name@company.co.ls',
                                     prefixIcon: Icon(Icons.alternate_email_rounded),
                                   ),
@@ -124,7 +124,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     if (!v.contains('@') ||
                                         v.startsWith('@') ||
                                         v.endsWith('@')) {
-                                      return 'Enter your configured email address';
+                                      return 'Enter your email address';
                                     }
                                     return null;
                                   },
@@ -177,7 +177,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                           ),
                                         )
                                       : const Text(
-                                          'Sign in to Ithute Mail',
+                                          'Open mailbox',
                                           style: TextStyle(
                                             fontSize: 16,
                                             fontWeight: FontWeight.w700,
@@ -187,9 +187,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                 const SizedBox(height: 12),
                                 OutlinedButton.icon(
                                   onPressed: store.busy ? null : _openExternalAccounts,
-                                  icon: const Icon(Icons.inbox_outlined),
+                                  icon: const Icon(Icons.add_rounded),
                                   label: const Text(
-                                    'Other email account',
+                                    'Connect another email account',
                                     style: TextStyle(fontWeight: FontWeight.w700),
                                   ),
                                   style: OutlinedButton.styleFrom(
@@ -211,7 +211,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        'Ithute Mail passwords are not stored by iMail. External IMAP/SMTP account credentials are kept only in encrypted device secure storage.',
+                                        'A connected external account keeps its verified mail-server settings in encrypted device storage, so iMail does not rediscover those servers on every sign-in.',
                                         style: TextStyle(
                                           fontSize: 12,
                                           height: 1.4,
