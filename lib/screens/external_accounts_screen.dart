@@ -115,7 +115,7 @@ class _ExternalAccountsScreenState extends State<ExternalAccountsScreen> {
                     ),
                     const SizedBox(height: 10),
                     const Text(
-                      'Add a Zeecom, cPanel, Plesk, company or other standard IMAP/SMTP account.',
+                      'Add any standard IMAP/SMTP email account using its secure mail-server settings.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Color(0xFF667085),
