@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'api_client.dart';
+import 'app_lock.dart';
 import 'branding.dart';
 import 'mail_realtime_bridge.dart';
 import 'mail_store.dart';
@@ -54,7 +55,7 @@ class IMailApp extends StatelessWidget {
               ),
             ),
           ),
-          home: const _RootGate(),
+          home: const AppLockGate(child: _RootGate()),
         ),
       ),
     );
