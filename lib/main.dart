@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'api_client.dart';
 import 'branding.dart';
+import 'mail_realtime_bridge.dart';
 import 'mail_store.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
@@ -17,38 +18,44 @@ class IMailApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => MailStore(IMailApiClient())..bootstrap(),
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'iMail',
-        theme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: imailGreen,
-            primary: imailGreen,
-            secondary: imailGold,
-            surface: Colors.white,
+    final api = IMailApiClient();
+    return MultiProvider(
+      providers: [
+        Provider<IMailApiClient>.value(value: api),
+        ChangeNotifierProvider(create: (_) => MailStore(api)..bootstrap()),
+      ],
+      child: MailRealtimeBridge(
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'iMail',
+          theme: ThemeData(
+            useMaterial3: true,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: imailGreen,
+              primary: imailGreen,
+              secondary: imailGold,
+              surface: Colors.white,
+            ),
+            scaffoldBackgroundColor: imailSurface,
+            inputDecorationTheme: InputDecorationTheme(
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(18),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(18),
+                borderSide: const BorderSide(color: Color(0xFFE5E9E7)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(18),
+                borderSide: const BorderSide(color: imailEmerald, width: 1.4),
+              ),
+            ),
           ),
-          scaffoldBackgroundColor: imailSurface,
-          inputDecorationTheme: InputDecorationTheme(
-            filled: true,
-            fillColor: Colors.white,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(18),
-              borderSide: BorderSide.none,
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(18),
-              borderSide: const BorderSide(color: Color(0xFFE5E9E7)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(18),
-              borderSide: const BorderSide(color: imailEmerald, width: 1.4),
-            ),
-          ),
+          home: const _RootGate(),
         ),
-        home: const _RootGate(),
       ),
     );
   }
@@ -64,7 +71,7 @@ class _RootGate extends StatelessWidget {
       return const _IMailBootScreen();
     }
     return AnimatedSwitcher(
-      duration: Duration(milliseconds: 180),
+      duration: const Duration(milliseconds: 180),
       child: store.authenticated
           ? const HomeScreen(key: ValueKey('mailbox'))
           : const LoginScreen(key: ValueKey('login')),
