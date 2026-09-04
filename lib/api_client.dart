@@ -151,30 +151,10 @@ class IMailApiClient {
   Future<String> login(String address, String password) async {
     final normalized = address.trim().toLowerCase();
 
-    // Hosted Ithute mailboxes always win first.
-    final internal = await _client.post(
-      _uri('/webmail/session'),
-      headers: _headers(jsonBody: true),
-      body: jsonEncode({'address': normalized, 'password': password}),
-    );
-    if (internal.statusCode >= 200 && internal.statusCode < 300) {
-      final decoded = Map<String, dynamic>.from(_decode(internal));
-      return _captureSession(
-        internal,
-        decoded,
-        fallbackAddress: normalized,
-        external: false,
-      );
-    }
-
-    final internalError = _responseException(internal);
-    if (internal.statusCode != 401 && internal.statusCode != 404) {
-      throw internalError;
-    }
-
-    // A mailbox that completed external setup before is now a normal iMail
-    // login: the backend uses its remembered verified settings and performs
-    // one direct authentication instead of rediscovering IMAP/SMTP servers.
+    // Known external accounts are checked first because this lookup is a fast
+    // Redis profile lookup plus one direct authentication. It does not run
+    // discovery. More importantly, a known external account never produces a
+    // failed hosted-mailbox login before its real server is tried.
     final knownExternal = await _client.post(
       _uri('/webmail/external/known-session'),
       headers: _headers(jsonBody: true),
@@ -189,11 +169,28 @@ class IMailApiClient {
         external: true,
       );
     }
+    if (knownExternal.statusCode != 404) {
+      throw _responseException(knownExternal);
+    }
 
-    // 404 means this address has never completed external setup. Keep the
-    // ordinary hosted-mailbox error so the UI can offer account setup once.
-    if (knownExternal.statusCode == 404) throw internalError;
-    throw _responseException(knownExternal);
+    // Unknown to the external registry: use the normal hosted Ithute mailbox
+    // authentication path. A first-time external account is configured through
+    // the account-setup screen once and then becomes a known account.
+    final internal = await _client.post(
+      _uri('/webmail/session'),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode({'address': normalized, 'password': password}),
+    );
+    if (internal.statusCode >= 200 && internal.statusCode < 300) {
+      final decoded = Map<String, dynamic>.from(_decode(internal));
+      return _captureSession(
+        internal,
+        decoded,
+        fallbackAddress: normalized,
+        external: false,
+      );
+    }
+    throw _responseException(internal);
   }
 
   Future<void> registerExternalAccount({
