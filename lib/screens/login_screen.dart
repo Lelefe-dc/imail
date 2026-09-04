@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../api_client.dart';
 import '../branding.dart';
 import '../mail_store.dart';
+import 'external_accounts_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -36,6 +37,12 @@ class _LoginScreenState extends State<LoginScreen> {
         SnackBar(content: Text(e.message)),
       );
     }
+  }
+
+  void _openExternalAccounts() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ExternalAccountsScreen()),
+    );
   }
 
   @override
@@ -92,7 +99,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                                 const SizedBox(height: 8),
                                 const Text(
-                                  'Use the email address and mailbox password already created in Ithute Mail.',
+                                  'Use an Ithute Mail account, or connect another standard IMAP/SMTP mailbox such as Zeecom or cPanel.',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     color: Color(0xFF687078),
@@ -108,7 +115,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   textInputAction: TextInputAction.next,
                                   autofillHints: const [AutofillHints.email],
                                   decoration: const InputDecoration(
-                                    labelText: 'Email address',
+                                    labelText: 'Ithute email address',
                                     hintText: 'name@company.co.ls',
                                     prefixIcon: Icon(Icons.alternate_email_rounded),
                                   ),
@@ -170,12 +177,27 @@ class _LoginScreenState extends State<LoginScreen> {
                                           ),
                                         )
                                       : const Text(
-                                          'Sign in',
+                                          'Sign in to Ithute Mail',
                                           style: TextStyle(
                                             fontSize: 16,
                                             fontWeight: FontWeight.w700,
                                           ),
                                         ),
+                                ),
+                                const SizedBox(height: 12),
+                                OutlinedButton.icon(
+                                  onPressed: store.busy ? null : _openExternalAccounts,
+                                  icon: const Icon(Icons.add_to_inbox_rounded),
+                                  label: const Text(
+                                    'Other email account',
+                                    style: TextStyle(fontWeight: FontWeight.w700),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    minimumSize: const Size.fromHeight(52),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(18),
+                                    ),
+                                  ),
                                 ),
                                 const SizedBox(height: 18),
                                 const Row(
@@ -189,7 +211,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        'Your mailbox password is used only to authenticate with the Ithute Mail production service and is not stored by iMail.',
+                                        'Ithute Mail passwords are not stored by iMail. External IMAP/SMTP account credentials are kept only in encrypted device secure storage.',
                                         style: TextStyle(
                                           fontSize: 12,
                                           height: 1.4,
