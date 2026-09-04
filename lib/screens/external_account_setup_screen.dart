@@ -285,7 +285,7 @@ class _ExternalAccountSetupScreenState
                     OutlinedButton.icon(
                       onPressed: _busy ? null : _fillDomainDefaults,
                       icon: const Icon(Icons.dns_outlined),
-                      label: const Text('Use Zeecom / cPanel defaults'),
+                      label: const Text('Use standard domain defaults'),
                     ),
                     if (_manual) ...[
                       const SizedBox(height: 22),
@@ -406,7 +406,7 @@ class _ExternalAccountSetupScreenState
                         SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'External account credentials are stored only in Android/iOS secure storage on this device. SSL/TLS is the default.',
+                            'External account credentials are stored only in secure storage on this device. SSL/TLS is the default.',
                             style: TextStyle(
                               color: Color(0xFF667085),
                               fontSize: 12,
