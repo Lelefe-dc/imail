@@ -61,19 +61,52 @@ class _RootGate extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = context.watch<MailStore>();
     if (store.booting) {
-      return const Scaffold(
-        body: Center(
+      return const _IMailBootScreen();
+    }
+    return AnimatedSwitcher(
+      duration: Duration(milliseconds: 180),
+      child: store.authenticated
+          ? const HomeScreen(key: ValueKey('mailbox'))
+          : const LoginScreen(key: ValueKey('login')),
+    );
+  }
+}
+
+class _IMailBootScreen extends StatelessWidget {
+  const _IMailBootScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: Color(0xFFF3F6FC),
+      body: SafeArea(
+        child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              IMailLogo(width: 250),
-              SizedBox(height: 28),
-              CircularProgressIndicator(strokeWidth: 2.5),
+              IMailLogo(width: 255),
+              SizedBox(height: 24),
+              SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.2,
+                  color: imailGreen,
+                ),
+              ),
+              SizedBox(height: 14),
+              Text(
+                'Opening your mail…',
+                style: TextStyle(
+                  color: Color(0xFF667085),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ],
           ),
         ),
-      );
-    }
-    return store.authenticated ? const HomeScreen() : const LoginScreen();
+      ),
+    );
   }
 }

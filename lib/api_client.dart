@@ -10,6 +10,7 @@ class ApiException implements Exception {
   ApiException(this.message, {this.statusCode});
   final String message;
   final int? statusCode;
+
   @override
   String toString() => message;
 }
@@ -30,12 +31,32 @@ class IMailApiClient {
   final String baseUrl;
   final http.Client _client;
   final FlutterSecureStorage _storage;
+
   String? _cookie;
+  String? _cachedAddress;
 
   static const _cookieStorageKey = 'imail_webmail_session_cookie';
+  static const _addressStorageKey = 'imail_webmail_address';
 
-  Future<void> restoreCookie() async {
-    _cookie = await _storage.read(key: _cookieStorageKey);
+  String? get cachedAddress => _cachedAddress;
+
+  Future<bool> restoreCookie() async {
+    final values = await Future.wait<String?>([
+      _storage.read(key: _cookieStorageKey),
+      _storage.read(key: _addressStorageKey),
+    ]);
+    _cookie = values[0];
+    _cachedAddress = values[1];
+    return _cookie != null && _cookie!.isNotEmpty;
+  }
+
+  Future<void> clearLocalSession() async {
+    _cookie = null;
+    _cachedAddress = null;
+    await Future.wait<void>([
+      _storage.delete(key: _cookieStorageKey),
+      _storage.delete(key: _addressStorageKey),
+    ]);
   }
 
   Map<String, String> _headers({bool jsonBody = false}) => {
@@ -60,6 +81,7 @@ class IMailApiClient {
       if (response.body.trim().isEmpty) return <String, dynamic>{};
       return jsonDecode(response.body);
     }
+
     String message = 'Request failed (${response.statusCode})';
     try {
       final decoded = jsonDecode(response.body);
@@ -83,13 +105,11 @@ class IMailApiClient {
   }
 
   Future<String> login(String address, String password) async {
+    final normalized = address.trim().toLowerCase();
     final response = await _client.post(
       _uri('/webmail/session'),
       headers: _headers(jsonBody: true),
-      body: jsonEncode({
-        'address': address.trim().toLowerCase(),
-        'password': password,
-      }),
+      body: jsonEncode({'address': normalized, 'password': password}),
     );
     final decoded = Map<String, dynamic>.from(_decode(response));
     final rawSetCookie = response.headers['set-cookie'];
@@ -98,9 +118,14 @@ class IMailApiClient {
         'The server authenticated the mailbox but did not return a session cookie.',
       );
     }
+
     _cookie = rawSetCookie.split(';').first.trim();
-    await _storage.write(key: _cookieStorageKey, value: _cookie);
-    return decoded['address']?.toString() ?? address.trim().toLowerCase();
+    _cachedAddress = decoded['address']?.toString() ?? normalized;
+    await Future.wait<void>([
+      _storage.write(key: _cookieStorageKey, value: _cookie),
+      _storage.write(key: _addressStorageKey, value: _cachedAddress),
+    ]);
+    return _cachedAddress!;
   }
 
   Future<String> sessionAddress() async {
@@ -109,43 +134,55 @@ class IMailApiClient {
       headers: _headers(),
     );
     final decoded = Map<String, dynamic>.from(_decode(response));
-    return decoded['address']?.toString() ?? '';
+    final value = decoded['address']?.toString() ?? '';
+    if (value.isNotEmpty && value != _cachedAddress) {
+      _cachedAddress = value;
+      await _storage.write(key: _addressStorageKey, value: value);
+    }
+    return value;
   }
 
   Future<void> logout() async {
     try {
       await _client.delete(_uri('/webmail/session'), headers: _headers());
     } finally {
-      _cookie = null;
-      await _storage.delete(key: _cookieStorageKey);
+      await clearLocalSession();
     }
   }
 
   Future<List<MailFolder>> folders() async {
-    final folderResponse = await _client.get(
-      _uri('/webmail/folders'),
-      headers: _headers(),
-    );
-    final countResponse = await _client.get(
-      _uri('/webmail/folder-counts'),
-      headers: _headers(),
-    );
-    final folderJson = Map<String, dynamic>.from(_decode(folderResponse));
-    final countJson = Map<String, dynamic>.from(_decode(countResponse));
-    final counts = <String, int>{};
+    final responses = await Future.wait<http.Response>([
+      _client.get(_uri('/webmail/folders'), headers: _headers()),
+      _client.get(_uri('/webmail/folder-counts'), headers: _headers()),
+    ]);
+
+    final folderJson = Map<String, dynamic>.from(_decode(responses[0]));
+    final countJson = Map<String, dynamic>.from(_decode(responses[1]));
+
+    final totals = <String, int>{};
+    final unread = <String, int>{};
     for (final item in (countJson['items'] as List? ?? const [])) {
-      if (item is Map) {
-        final m = Map<String, dynamic>.from(item);
-        final name = m['name']?.toString() ?? m['folder']?.toString() ?? '';
-        final count = (m['unseen'] ?? m['messages'] ?? m['count']) as num?;
-        if (name.isNotEmpty && count != null) counts[name] = count.toInt();
-      }
+      if (item is! Map) continue;
+      final row = Map<String, dynamic>.from(item);
+      final name = row['name']?.toString() ?? row['folder']?.toString() ?? '';
+      if (name.isEmpty) continue;
+      final key = name.toLowerCase();
+      totals[key] = ((row['messages'] ?? row['total'] ?? row['count']) as num?)
+              ?.toInt() ??
+          0;
+      unread[key] = ((row['unseen'] ?? row['unread']) as num?)?.toInt() ?? 0;
     }
+
     return (folderJson['items'] as List? ?? const [])
         .whereType<Map>()
         .map((item) {
           final name = item['name']?.toString() ?? '';
-          return MailFolder(name, count: counts[name]);
+          final key = name.toLowerCase();
+          return MailFolder(
+            name,
+            totalCount: totals[key] ?? 0,
+            unreadCount: unread[key] ?? 0,
+          );
         })
         .where((folder) => folder.name.isNotEmpty)
         .toList();
