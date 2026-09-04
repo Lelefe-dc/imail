@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:enough_mail/enough_mail.dart';
@@ -85,7 +84,7 @@ class ExternalAccountStore {
     } catch (_) {
       // Local secure storage remains authoritative for the device. A temporary
       // API outage must not make a mailbox that already passed direct IMAP/SMTP
-      // verification unusable. syncKnownAccounts() retries later.
+      // verification unusable. syncKnownAccounts() can retry later.
       return false;
     }
   }
