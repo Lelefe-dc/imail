@@ -191,12 +191,12 @@ class IMailApiClient {
     }
 
     // 404 means this address has never completed external setup. Keep the
-    // ordinary hosted-mailbox error so the UI can offer "Other email account".
+    // ordinary hosted-mailbox error so the UI can offer account setup once.
     if (knownExternal.statusCode == 404) throw internalError;
     throw _responseException(knownExternal);
   }
 
-  Future<String> registerExternalAccount({
+  Future<void> registerExternalAccount({
     required String address,
     required String password,
     required String username,
@@ -210,7 +210,7 @@ class IMailApiClient {
   }) async {
     final normalized = address.trim().toLowerCase();
     final response = await _client.post(
-      _uri('/webmail/external/register-session'),
+      _uri('/webmail/external/register-known'),
       headers: _headers(jsonBody: true),
       body: jsonEncode({
         'address': normalized,
@@ -225,13 +225,7 @@ class IMailApiClient {
         'smtp_security': smtpSecurity,
       }),
     );
-    final decoded = Map<String, dynamic>.from(_decode(response));
-    return _captureSession(
-      response,
-      decoded,
-      fallbackAddress: normalized,
-      external: true,
-    );
+    _decode(response);
   }
 
   Future<String> sessionAddress() async {
@@ -258,12 +252,11 @@ class IMailApiClient {
 
   Uri realtimeSocketUri({String lastEventId = r'$'}) {
     final httpUri = Uri.parse(baseUrl);
-    final socketBase = httpUri.replace(
+    return httpUri.replace(
       scheme: httpUri.scheme == 'https' ? 'wss' : 'ws',
       path: '${httpUri.path}$_mailBase/events/ws',
       queryParameters: {'last_event_id': lastEventId},
     );
-    return socketBase;
   }
 
   Future<WebSocket> connectRealtime({String lastEventId = r'$'}) async {
