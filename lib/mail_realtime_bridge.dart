@@ -77,7 +77,7 @@ class _MailRealtimeBridgeState extends State<MailRealtimeBridge>
     } catch (_) {}
   }
 
-  void _scheduleEnsure({const Duration delay = Duration.zero}) {
+  void _scheduleEnsure({Duration delay = Duration.zero}) {
     _reconnectTimer?.cancel();
     _reconnectTimer = Timer(delay, () {
       if (mounted) unawaited(_ensureSocket());
