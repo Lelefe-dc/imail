@@ -77,7 +77,6 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!_enabled) return;
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.detached) {
@@ -85,14 +84,33 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
       return;
     }
     if (state == AppLifecycleState.resumed) {
-      final leftAt = _backgroundedAt;
-      _backgroundedAt = null;
-      if (leftAt != null &&
-          DateTime.now().difference(leftAt) > const Duration(seconds: 2)) {
-        if (mounted) setState(() => _unlocked = false);
-        unawaited(_unlock());
-      }
+      unawaited(_handleResume());
     }
+  }
+
+  Future<void> _handleResume() async {
+    final enabled = await _service.enabled();
+    if (!mounted) return;
+    final leftAt = _backgroundedAt;
+    _backgroundedAt = null;
+
+    if (!enabled) {
+      setState(() {
+        _enabled = false;
+        _unlocked = true;
+      });
+      return;
+    }
+
+    final shouldRelock = !_enabled ||
+        !_unlocked ||
+        (leftAt != null &&
+            DateTime.now().difference(leftAt) > const Duration(seconds: 2));
+    setState(() {
+      _enabled = true;
+      if (shouldRelock) _unlocked = false;
+    });
+    if (shouldRelock) unawaited(_unlock());
   }
 
   Future<void> _unlock() async {
