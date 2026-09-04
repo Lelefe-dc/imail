@@ -99,7 +99,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                                 const SizedBox(height: 8),
                                 const Text(
-                                  'Use an Ithute Mail account, or connect another standard IMAP/SMTP mailbox such as Zeecom or cPanel.',
+                                  'Use an Ithute Mail account, or connect another standard IMAP/SMTP mailbox.',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     color: Color(0xFF687078),
