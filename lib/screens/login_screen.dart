@@ -187,7 +187,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 const SizedBox(height: 12),
                                 OutlinedButton.icon(
                                   onPressed: store.busy ? null : _openExternalAccounts,
-                                  icon: const Icon(Icons.add_to_inbox_rounded),
+                                  icon: const Icon(Icons.inbox_outlined),
                                   label: const Text(
                                     'Other email account',
                                     style: TextStyle(fontWeight: FontWeight.w700),
