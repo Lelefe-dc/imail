@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../api_client.dart';
 import '../branding.dart';
+import '../mail_account_api.dart';
 import '../mail_cache.dart';
 import '../mail_preferences.dart';
 import '../mail_store.dart';
@@ -17,6 +19,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _preferences = MailPreferences();
   final _cache = MailCache();
+  final _accountApi = MailAccountApi();
 
   bool _loading = true;
   bool _conversation = true;
@@ -79,6 +82,106 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Future<void> _editDisplayName() async {
+    final controller = TextEditingController(text: widget.store.displayName);
+    final value = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Display name'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 255,
+          decoration: const InputDecoration(
+            hintText: 'Name shown on outgoing mail',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (value == null) return;
+    try {
+      await _accountApi.setDisplayName(value);
+      await widget.store.refresh();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Display name saved.')),
+        );
+      }
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    }
+  }
+
+  Future<void> _editSignature() async {
+    String current = '';
+    try {
+      current = await _accountApi.signature();
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+      return;
+    }
+    if (!mounted) return;
+    final controller = TextEditingController(text: current);
+    final value = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Email signature'),
+        content: SizedBox(
+          width: 420,
+          child: TextField(
+            controller: controller,
+            autofocus: true,
+            minLines: 4,
+            maxLines: 9,
+            maxLength: 20000,
+            decoration: const InputDecoration(
+              hintText: 'Your signature',
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (value == null) return;
+    try {
+      await _accountApi.setSignature(value);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Signature saved.')),
+        );
+      }
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    }
+  }
+
   String _label(String value) {
     switch (value) {
       case 'archive':
@@ -90,6 +193,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       default:
         return 'Do nothing';
     }
+  }
+
+  String _accountInitial() {
+    final value = (widget.store.address ?? '').trim();
+    return value.isEmpty ? 'I' : value[0].toUpperCase();
   }
 
   @override
@@ -117,9 +225,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         (next) => _conversation = next,
                       ),
                       title: const Text('Conversation view'),
-                      subtitle: const Text(
-                        'Group related replies into a single conversation.',
-                      ),
+                      subtitle: const Text('Group related replies into a single conversation.'),
                     ),
                     SwitchListTile.adaptive(
                       value: _compact,
@@ -145,9 +251,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         (next) => _sound = next,
                       ),
                       title: const Text('Notification sound'),
-                      subtitle: const Text(
-                        'Play an alert when realtime mail arrives while iMail is active.',
-                      ),
+                      subtitle: const Text('Play an alert when realtime mail arrives while iMail is active.'),
                     ),
                     SwitchListTile.adaptive(
                       value: _preview,
@@ -157,9 +261,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         (next) => _preview = next,
                       ),
                       title: const Text('Show message previews'),
-                      subtitle: const Text(
-                        'Allow sender and subject previews in iMail notifications.',
-                      ),
+                      subtitle: const Text('Allow sender and subject previews in iMail notifications.'),
                     ),
                   ],
                 ),
@@ -219,9 +321,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         (next) => _offline = next,
                       ),
                       title: const Text('Keep recent mail available offline'),
-                      subtitle: const Text(
-                        'Cache up to 100 recent messages per folder in encrypted device storage.',
-                      ),
+                      subtitle: const Text('Cache up to 100 recent messages per folder in encrypted device storage.'),
                     ),
                     ListTile(
                       leading: const Icon(Icons.cleaning_services_outlined),
@@ -238,9 +338,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       leading: CircleAvatar(
                         backgroundColor: imailGreen,
                         foregroundColor: Colors.white,
-                        child: Text(
-                          (widget.store.address ?? 'i').substring(0, 1).toUpperCase(),
-                        ),
+                        child: Text(_accountInitial()),
                       ),
                       title: Text(
                         widget.store.displayName.isNotEmpty
@@ -248,6 +346,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             : 'iMail account',
                       ),
                       subtitle: Text(widget.store.address ?? ''),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.badge_outlined),
+                      title: const Text('Display name'),
+                      subtitle: const Text('Name shown on outgoing messages'),
+                      onTap: _editDisplayName,
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.draw_outlined),
+                      title: const Text('Signature'),
+                      subtitle: const Text('Set the signature for this email address'),
+                      onTap: _editSignature,
                     ),
                   ],
                 ),
