@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -48,7 +49,9 @@ class IMailApiClient {
     query?.forEach((key, value) {
       if (value != null) values[key] = value;
     });
-    return Uri.parse('$baseUrl$path').replace(queryParameters: values.isEmpty ? null : values);
+    return Uri.parse('$baseUrl$path').replace(
+      queryParameters: values.isEmpty ? null : values,
+    );
   }
 
   dynamic _decode(http.Response response, {bool allowEmpty = false}) {
@@ -60,7 +63,21 @@ class IMailApiClient {
     String message = 'Request failed (${response.statusCode})';
     try {
       final decoded = jsonDecode(response.body);
-      if (decoded is Map && decoded['detail'] != null) message = decoded['detail'].toString();
+      if (decoded is Map && decoded['detail'] != null) {
+        message = decoded['detail'].toString();
+      }
+    } catch (_) {}
+    throw ApiException(message, statusCode: response.statusCode);
+  }
+
+  void _checkBinary(http.Response response) {
+    if (response.statusCode >= 200 && response.statusCode < 300) return;
+    String message = 'Request failed (${response.statusCode})';
+    try {
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      if (decoded is Map && decoded['detail'] != null) {
+        message = decoded['detail'].toString();
+      }
     } catch (_) {}
     throw ApiException(message, statusCode: response.statusCode);
   }
@@ -69,12 +86,17 @@ class IMailApiClient {
     final response = await _client.post(
       _uri('/webmail/session'),
       headers: _headers(jsonBody: true),
-      body: jsonEncode({'address': address.trim().toLowerCase(), 'password': password}),
+      body: jsonEncode({
+        'address': address.trim().toLowerCase(),
+        'password': password,
+      }),
     );
     final decoded = Map<String, dynamic>.from(_decode(response));
     final rawSetCookie = response.headers['set-cookie'];
     if (rawSetCookie == null || rawSetCookie.isEmpty) {
-      throw ApiException('The server authenticated the mailbox but did not return a session cookie.');
+      throw ApiException(
+        'The server authenticated the mailbox but did not return a session cookie.',
+      );
     }
     _cookie = rawSetCookie.split(';').first.trim();
     await _storage.write(key: _cookieStorageKey, value: _cookie);
@@ -82,7 +104,10 @@ class IMailApiClient {
   }
 
   Future<String> sessionAddress() async {
-    final response = await _client.get(_uri('/webmail/session'), headers: _headers());
+    final response = await _client.get(
+      _uri('/webmail/session'),
+      headers: _headers(),
+    );
     final decoded = Map<String, dynamic>.from(_decode(response));
     return decoded['address']?.toString() ?? '';
   }
@@ -97,8 +122,14 @@ class IMailApiClient {
   }
 
   Future<List<MailFolder>> folders() async {
-    final folderResponse = await _client.get(_uri('/webmail/folders'), headers: _headers());
-    final countResponse = await _client.get(_uri('/webmail/folder-counts'), headers: _headers());
+    final folderResponse = await _client.get(
+      _uri('/webmail/folders'),
+      headers: _headers(),
+    );
+    final countResponse = await _client.get(
+      _uri('/webmail/folder-counts'),
+      headers: _headers(),
+    );
     final folderJson = Map<String, dynamic>.from(_decode(folderResponse));
     final countJson = Map<String, dynamic>.from(_decode(countResponse));
     final counts = <String, int>{};
@@ -147,7 +178,9 @@ class IMailApiClient {
       _uri('/webmail/messages/$uid', {'folder': folder}),
       headers: _headers(),
     );
-    return MailMessage.fromJson(Map<String, dynamic>.from(_decode(response)));
+    return MailMessage.fromJson(
+      Map<String, dynamic>.from(_decode(response)),
+    );
   }
 
   Future<MailMessage> setFlags(
@@ -155,13 +188,20 @@ class IMailApiClient {
     required String folder,
     bool? seen,
     bool? flagged,
+    bool? answered,
   }) async {
     final response = await _client.patch(
       _uri('/webmail/messages/$uid/flags', {'folder': folder}),
       headers: _headers(jsonBody: true),
-      body: jsonEncode({'seen': seen, 'flagged': flagged}),
+      body: jsonEncode({
+        'seen': seen,
+        'flagged': flagged,
+        'answered': answered,
+      }),
     );
-    return MailMessage.fromJson(Map<String, dynamic>.from(_decode(response)));
+    return MailMessage.fromJson(
+      Map<String, dynamic>.from(_decode(response)),
+    );
   }
 
   Future<void> deleteMessage(String uid, {required String folder}) async {
@@ -172,7 +212,11 @@ class IMailApiClient {
     _decode(response);
   }
 
-  Future<void> moveMessage(String uid, {required String folder, required String destination}) async {
+  Future<void> moveMessage(
+    String uid, {
+    required String folder,
+    required String destination,
+  }) async {
     final response = await _client.post(
       _uri('/webmail/messages/$uid/move', {'folder': folder}),
       headers: _headers(jsonBody: true),
@@ -181,12 +225,26 @@ class IMailApiClient {
     _decode(response);
   }
 
+  Future<Uint8List> downloadAttachment(
+    String uid,
+    int index, {
+    required String folder,
+  }) async {
+    final response = await _client.get(
+      _uri('/webmail/messages/$uid/attachments/$index', {'folder': folder}),
+      headers: _headers(),
+    );
+    _checkBinary(response);
+    return response.bodyBytes;
+  }
+
   Future<void> send({
     required List<String> to,
     List<String> cc = const [],
     List<String> bcc = const [],
     String subject = '',
     String bodyText = '',
+    List<MailUploadAttachment> attachments = const [],
     String inReplyTo = '',
     String references = '',
   }) async {
@@ -199,7 +257,15 @@ class IMailApiClient {
         'bcc': bcc,
         'subject': subject,
         'body_text': bodyText,
-        'attachments': const [],
+        'attachments': attachments
+            .map(
+              (item) => {
+                'filename': item.filename,
+                'content_type': item.contentType,
+                'content_b64': base64Encode(item.bytes),
+              },
+            )
+            .toList(),
         'in_reply_to': inReplyTo,
         'references': references,
       }),
@@ -216,13 +282,21 @@ class IMailApiClient {
     final response = await _client.post(
       _uri('/webmail/drafts'),
       headers: _headers(jsonBody: true),
-      body: jsonEncode({'to': to, 'cc': cc, 'subject': subject, 'body_text': bodyText}),
+      body: jsonEncode({
+        'to': to,
+        'cc': cc,
+        'subject': subject,
+        'body_text': bodyText,
+      }),
     );
     _decode(response);
   }
 
   Future<Map<String, String>> identity() async {
-    final response = await _client.get(_uri('/webmail/identity'), headers: _headers());
+    final response = await _client.get(
+      _uri('/webmail/identity'),
+      headers: _headers(),
+    );
     final decoded = Map<String, dynamic>.from(_decode(response));
     return {
       'address': decoded['address']?.toString() ?? '',

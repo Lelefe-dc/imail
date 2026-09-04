@@ -19,6 +19,20 @@ class MailAttachment {
       );
 }
 
+class MailUploadAttachment {
+  const MailUploadAttachment({
+    required this.filename,
+    required this.contentType,
+    required this.bytes,
+  });
+
+  final String filename;
+  final String contentType;
+  final List<int> bytes;
+
+  int get size => bytes.length;
+}
+
 class MailMessage {
   const MailMessage({
     required this.uid,
@@ -81,7 +95,7 @@ class MailMessage {
             .toList(),
       );
 
-  MailMessage copyWith({bool? seen, bool? flagged}) => MailMessage(
+  MailMessage copyWith({bool? seen, bool? flagged, bool? answered}) => MailMessage(
         uid: uid,
         from: from,
         to: to,
@@ -92,7 +106,7 @@ class MailMessage {
         snippet: snippet,
         seen: seen ?? this.seen,
         flagged: flagged ?? this.flagged,
-        answered: answered,
+        answered: answered ?? this.answered,
         draft: draft,
         bodyText: bodyText,
         messageId: messageId,

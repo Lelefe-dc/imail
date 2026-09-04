@@ -124,8 +124,26 @@ class MailStore extends ChangeNotifier {
   }
 
   Future<void> markUnread(MailMessage item) async {
-    final updated = await api.setFlags(item.uid, folder: selectedFolder, seen: false);
+    final updated = await api.setFlags(
+      item.uid,
+      folder: selectedFolder,
+      seen: false,
+    );
     _replace(updated);
+  }
+
+  Future<void> markAnswered(MailMessage item) async {
+    try {
+      final updated = await api.setFlags(
+        item.uid,
+        folder: selectedFolder,
+        answered: true,
+      );
+      _replace(updated);
+    } on ApiException {
+      // The outgoing message has already been accepted by SMTP. A flag update
+      // failure must not make the user think sending failed.
+    }
   }
 
   void _replace(MailMessage item) {
@@ -144,7 +162,11 @@ class MailStore extends ChangeNotifier {
   }
 
   Future<void> move(MailMessage item, String destination) async {
-    await api.moveMessage(item.uid, folder: selectedFolder, destination: destination);
+    await api.moveMessage(
+      item.uid,
+      folder: selectedFolder,
+      destination: destination,
+    );
     messages = messages.where((message) => message.uid != item.uid).toList();
     notifyListeners();
   }
