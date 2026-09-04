@@ -12,15 +12,24 @@ https://api.ithute.co.ls/api/v1
 
 Mailbox users sign in with the email address and mailbox password already configured in Mailbox-DNS. After authentication, iMail loads the real server-side folders, unread counts and messages for that mailbox.
 
+## Mail event architecture
+
+Mailbox reads and mutations are serialized through an event BLoC. Foreground mailbox listeners reconcile folder counts and selected-folder messages automatically, app resume triggers an immediate sync, and optimistic mutations update the UI before the server round trip then roll back on failure.
+
+Folder counters keep both total and unread values. Inbox/spam/category-style folders display unread counts; Sent, Drafts, Trash and similar folders display real message totals.
+
+The foreground listener checks production Mailbox-DNS every 12 seconds by default and pauses when the app is backgrounded. For controlled tuning use `--dart-define=IMAIL_MAIL_POLL_SECONDS=<seconds>` (minimum 5 seconds). No local backend is required.
+
 ## Current mobile features
 
 - Existing-mailbox login through `/api/v1/webmail/session`
 - Secure server session storage; mailbox passwords are not persisted on the device
-- Session restore on relaunch
-- Real IMAP folders and folder counts
+- Fast cached-account startup and session restore
+- Real IMAP folders with separate total/unread counts
+- Foreground incoming-mail/count listener and resume reconciliation
 - Inbox/folder navigation and server-side search
-- Read, unread, star, move and delete actions
-- Compose, reply, forward and save draft operations
+- Read, unread, star, move, archive and delete actions with optimistic mutation handling
+- Compose, reply, reply-all, forward, attachments and save-draft operations
 - Clean Ithute iMail branded Material 3 UI
 
 ## Run against production
@@ -46,4 +55,4 @@ Application ID:
 ls.co.ithute.imail
 ```
 
-Production Android traffic is HTTPS-only (`usesCleartextTraffic=false`). Before Play Store publishing, configure the private upload signing key and complete store metadata, privacy/data-safety declarations, screenshots, final versioning and release validation.
+Production Android traffic is HTTPS-only (`usesCleartextTraffic=false`). The native launch theme uses the iMail surface and launcher mark so startup does not sit on a plain white window before Flutter paints.
