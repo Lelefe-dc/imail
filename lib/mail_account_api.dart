@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
 import 'api_client.dart';
+import 'models.dart';
 
 class MailContact {
   const MailContact({required this.email, this.name = ''});
@@ -123,6 +124,36 @@ class MailAccountApi {
       '/identity',
       method: 'PUT',
       body: {'display_name': value.trim()},
+    );
+  }
+
+  Future<void> saveFullDraft({
+    List<String> to = const [],
+    List<String> cc = const [],
+    List<String> bcc = const [],
+    String subject = '',
+    String bodyText = '',
+    List<MailUploadAttachment> attachments = const [],
+  }) async {
+    await _request(
+      '/drafts-rich',
+      method: 'POST',
+      body: {
+        'to': to,
+        'cc': cc,
+        'bcc': bcc,
+        'subject': subject,
+        'body_text': bodyText,
+        'attachments': attachments
+            .map(
+              (item) => {
+                'filename': item.filename,
+                'content_type': item.contentType,
+                'content_b64': base64Encode(item.bytes),
+              },
+            )
+            .toList(growable: false),
+      },
     );
   }
 }
