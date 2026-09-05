@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:enough_mail/enough_mail.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
 
 import 'api_client.dart';
 
@@ -48,16 +49,16 @@ class ExternalAccountStore {
     }
     await _write(accounts);
 
-    // The account has already passed iMail's IMAP + SMTP verification. Give
-    // Mailbox-DNS those exact verified settings so it can remember the mailbox
-    // as a known account. The server independently verifies the exact endpoints
-    // once, but does not repeat discovery/candidate probing.
+    // Best-effort registration with Mailbox-DNS. The local account remains
+    // usable even if the API is temporarily unavailable, and reconnect can
+    // repair the server-side known-account profile later from these exact
+    // already-verified settings.
     await syncKnownAccount(account);
   }
 
   Future<bool> syncKnownAccount(MailAccount account) async {
-    final authentication = account.incoming.authentication;
-    if (authentication is! PlainAuthentication) {
+    final incomingAuthentication = account.incoming.authentication;
+    if (incomingAuthentication is! PlainAuthentication) {
       // OAuth and other future authentication types need their own server-side
       // token flow. Do not try to turn them into password authentication.
       return false;
@@ -65,12 +66,14 @@ class ExternalAccountStore {
 
     final incoming = account.incoming.serverConfig;
     final outgoing = account.outgoing.serverConfig;
+
+    // First use the lightweight registration endpoint when available.
     try {
       await IMailApiClient()
           .registerExternalAccount(
             address: account.email,
-            password: authentication.password,
-            username: authentication.userName,
+            password: incomingAuthentication.password,
+            username: incomingAuthentication.userName,
             displayName: account.userName,
             imapHost: incoming.hostname,
             imapPort: incoming.port,
@@ -79,13 +82,77 @@ class ExternalAccountStore {
             smtpPort: outgoing.port,
             smtpSecurity: _securityName(outgoing.socketType),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 8));
       return true;
     } catch (_) {
-      // Local secure storage remains authoritative for the device. A temporary
-      // API outage must not make a mailbox that already passed direct IMAP/SMTP
-      // verification unusable. syncKnownAccounts() can retry later.
+      // Older/stale deployments may not expose register-known yet, or a known
+      // profile may need to be repaired. Fall through to the normal external
+      // session endpoint with the exact settings that already worked on-device.
+    }
+
+    return _repairKnownAccountViaExactSession(
+      account,
+      incomingAuthentication,
+    );
+  }
+
+  Future<bool> _repairKnownAccountViaExactSession(
+    MailAccount account,
+    PlainAuthentication authentication,
+  ) async {
+    final incoming = account.incoming.serverConfig;
+    final outgoing = account.outgoing.serverConfig;
+    final api = IMailApiClient();
+    final client = http.Client();
+    try {
+      final response = await client
+          .post(
+            Uri.parse('${api.baseUrl}/webmail/external/session'),
+            headers: const {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'address': account.email.trim().toLowerCase(),
+              'password': authentication.password,
+              'username': authentication.userName.trim().isEmpty
+                  ? account.email.trim().toLowerCase()
+                  : authentication.userName.trim(),
+              'display_name': account.userName.trim(),
+              'imap_host': incoming.hostname,
+              'imap_port': incoming.port,
+              'imap_security': _securityName(incoming.socketType),
+              'smtp_host': outgoing.hostname,
+              'smtp_port': outgoing.port,
+              'smtp_security': _securityName(outgoing.socketType),
+            }),
+          )
+          .timeout(const Duration(seconds: 12));
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return false;
+      }
+
+      // The successful exact-session call repairs/persists the known profile.
+      // We only needed that side effect here, so close the temporary API
+      // session immediately rather than leaving an unused server session alive.
+      final rawCookie = response.headers['set-cookie'];
+      if (rawCookie != null && rawCookie.isNotEmpty) {
+        final cookie = rawCookie.split(';').first.trim();
+        try {
+          await client
+              .delete(
+                Uri.parse('${api.baseUrl}/webmail/external/session'),
+                headers: {'Accept': 'application/json', 'Cookie': cookie},
+              )
+              .timeout(const Duration(seconds: 4));
+        } catch (_) {}
+      }
+      return true;
+    } catch (_) {
       return false;
+    } finally {
+      client.close();
     }
   }
 
