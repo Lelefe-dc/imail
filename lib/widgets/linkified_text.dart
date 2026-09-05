@@ -113,8 +113,8 @@ class _LinkifiedSelectableTextState extends State<LinkifiedSelectableText> {
     // balanced parentheses that are genuinely part of the URL.
     while (end > 0 && value[end - 1] == ')') {
       final candidate = value.substring(0, end);
-      final opens = '('.allMatches(candidate).length;
-      final closes = ')'.allMatches(candidate).length;
+      final opens = RegExp(r'\(').allMatches(candidate).length;
+      final closes = RegExp(r'\)').allMatches(candidate).length;
       if (closes <= opens) break;
       end--;
     }
@@ -122,12 +122,21 @@ class _LinkifiedSelectableTextState extends State<LinkifiedSelectableText> {
   }
 
   Future<void> _open(Uri uri) async {
-    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!opened && mounted) {
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        const SnackBar(content: Text('Could not open this link.')),
-      );
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened) {
+        _showOpenError();
+      }
+    } catch (_) {
+      _showOpenError();
     }
+  }
+
+  void _showOpenError() {
+    if (!mounted) return;
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      const SnackBar(content: Text('Could not open this link.')),
+    );
   }
 
   @override
