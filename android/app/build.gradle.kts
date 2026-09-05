@@ -1,3 +1,6 @@
+import java.util.Base64
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -17,7 +20,7 @@ val generateIMailBrandingResources by tasks.registering {
     doLast {
         val drawableDir = generatedIMailResDir.get().dir("drawable-nodpi").asFile
         drawableDir.mkdirs()
-        val decoder = java.util.Base64.getDecoder()
+        val decoder = Base64.getDecoder()
 
         drawableDir.resolve("imail_launcher.webp").writeBytes(
             decoder.decode(launcherSource.readText().trim())
@@ -42,7 +45,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions { jvmTarget = JavaVersion.VERSION_17.toString() }
 
     defaultConfig {
         applicationId = "ls.co.ithute.imail"
@@ -59,6 +61,12 @@ android {
             // Replace with a Play signing config before publishing.
             signingConfig = signingConfigs.getByName("debug")
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
     }
 }
 
