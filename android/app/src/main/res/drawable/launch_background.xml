@@ -5,7 +5,9 @@
             <solid android:color="#F3F6FC" />
         </shape>
     </item>
-    <item
-        android:drawable="@drawable/ic_launcher"
-        android:gravity="center" />
+    <item>
+        <bitmap
+            android:src="@drawable/imail_splash"
+            android:gravity="fill" />
+    </item>
 </layer-list>
