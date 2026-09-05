@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Net.WebSockets;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 
@@ -9,13 +11,15 @@ public sealed class IMailApiClient
 {
     private readonly CookieContainer _cookies = new();
     private readonly HttpClient _http;
+    private readonly Uri _baseUri;
     private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web) { PropertyNameCaseInsensitive = true };
     private bool _external;
 
     public IMailApiClient(string? baseUrl = null)
     {
+        _baseUri = new Uri((baseUrl ?? "https://api.ithute.co.ls/api/v1").TrimEnd('/') + "/");
         var handler = new HttpClientHandler { CookieContainer = _cookies, AutomaticDecompression = DecompressionMethods.All };
-        _http = new HttpClient(handler) { BaseAddress = new Uri((baseUrl ?? "https://api.ithute.co.ls/api/v1").TrimEnd('/') + "/"), Timeout = TimeSpan.FromSeconds(30) };
+        _http = new HttpClient(handler) { BaseAddress = _baseUri, Timeout = TimeSpan.FromSeconds(30) };
         _http.DefaultRequestHeaders.Accept.ParseAdd("application/json");
     }
 
@@ -161,6 +165,35 @@ public sealed class IMailApiClient
         return new Identity(GetString(doc.RootElement, "address"), GetString(doc.RootElement, "display_name"));
     }
 
+    public async IAsyncEnumerable<string> RealtimeEventsAsync([EnumeratorCancellation] CancellationToken ct = default)
+    {
+        var cookieHeader = _cookies.GetCookieHeader(_baseUri);
+        if (string.IsNullOrWhiteSpace(cookieHeader)) yield break;
+
+        using var socket = new ClientWebSocket();
+        socket.Options.SetRequestHeader("Cookie", cookieHeader);
+        socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(25);
+        var path = new Uri(_baseUri, $"{MailBase}/events/ws?last_event_id=%24");
+        var wsUri = new UriBuilder(path) { Scheme = path.Scheme == "https" ? "wss" : "ws", Port = path.IsDefaultPort ? -1 : path.Port }.Uri;
+        await socket.ConnectAsync(wsUri, ct);
+
+        var buffer = new byte[16 * 1024];
+        while (!ct.IsCancellationRequested && socket.State == WebSocketState.Open)
+        {
+            var text = new StringBuilder();
+            WebSocketReceiveResult result;
+            do
+            {
+                result = await socket.ReceiveAsync(buffer, ct);
+                if (result.MessageType == WebSocketMessageType.Close) yield break;
+                if (result.MessageType == WebSocketMessageType.Text)
+                    text.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
+            } while (!result.EndOfMessage);
+
+            if (text.Length > 0) yield return text.ToString();
+        }
+    }
+
     private async Task<string> ReadAddressAsync(HttpResponseMessage response, string fallback, CancellationToken ct)
     {
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
@@ -172,6 +205,7 @@ public sealed class IMailApiClient
         foreach (var n in names) if (e.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.String) return v.GetString() ?? "";
         return "";
     }
+
     private static int GetInt(JsonElement e, params string[] names)
     {
         foreach (var n in names) if (e.TryGetProperty(n, out var v) && v.TryGetInt32(out var i)) return i;
