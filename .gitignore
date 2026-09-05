@@ -9,3 +9,11 @@ android/local.properties
 .idea/
 .flutter-plugins
 .flutter-plugins-dependencies
+
+# .NET / Avalonia desktop
+**/bin/
+**/obj/
+desktop/artifacts/
+.vs/
+*.user
+*.suo
