@@ -9,6 +9,7 @@ import '../api_client.dart';
 import '../branding.dart';
 import '../mail_store.dart';
 import '../models.dart';
+import '../widgets/linkified_text.dart';
 import 'compose_screen.dart';
 import 'message_details_sheet.dart';
 
@@ -380,7 +381,7 @@ class _MessageScreenState extends State<MessageScreen> {
                   )
                 else ...[
                   if (body.current.isNotEmpty)
-                    SelectableText(
+                    LinkifiedSelectableText(
                       body.current,
                       style: const TextStyle(fontSize: 16, height: 1.62, color: Color(0xFF202124)),
                     ),
@@ -416,7 +417,10 @@ class _MessageScreenState extends State<MessageScreen> {
                                 icon: const Icon(Icons.expand_less_rounded, size: 20, color: Color(0xFF70757A)),
                               ),
                             ),
-                            SelectableText(body.quoted, style: const TextStyle(fontSize: 14.5, height: 1.55, color: Color(0xFF5F6368))),
+                            LinkifiedSelectableText(
+                              body.quoted,
+                              style: const TextStyle(fontSize: 14.5, height: 1.55, color: Color(0xFF5F6368)),
+                            ),
                           ],
                         ),
                       ),
