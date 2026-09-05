@@ -7,6 +7,40 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+fun decodeWebpBase64(raw: String, label: String): ByteArray {
+    // The branding files are stored as UTF-8 base64 text because GitHub's
+    // contents API cannot write binary assets through this workflow. Be
+    // tolerant of accidental wrappers/whitespace introduced by tooling, but
+    // only decode the actual WebP payload beginning with the RIFF/WebP prefix.
+    val start = raw.indexOf("UklG")
+    require(start >= 0) { "$label does not contain a WebP base64 payload" }
+
+    val fromPayload = raw.substring(start)
+    val paddedEnd = fromPayload.lastIndexOf('=')
+    val payloadRegion = if (paddedEnd >= 0) {
+        fromPayload.substring(0, paddedEnd + 1)
+    } else {
+        fromPayload
+    }
+    val cleaned = payloadRegion.filter { ch ->
+        ch.isLetterOrDigit() || ch == '+' || ch == '/' || ch == '='
+    }
+
+    val bytes = Base64.getDecoder().decode(cleaned)
+    require(bytes.size >= 12 &&
+            bytes[0].toInt().toChar() == 'R' &&
+            bytes[1].toInt().toChar() == 'I' &&
+            bytes[2].toInt().toChar() == 'F' &&
+            bytes[3].toInt().toChar() == 'F' &&
+            bytes[8].toInt().toChar() == 'W' &&
+            bytes[9].toInt().toChar() == 'E' &&
+            bytes[10].toInt().toChar() == 'B' &&
+            bytes[11].toInt().toChar() == 'P') {
+        "$label decoded, but it is not a valid WebP file"
+    }
+    return bytes
+}
+
 val generatedIMailResDir = layout.buildDirectory.dir("generated/imailBranding/res")
 
 val generateIMailBrandingResources by tasks.registering {
@@ -20,18 +54,23 @@ val generateIMailBrandingResources by tasks.registering {
     doLast {
         val drawableDir = generatedIMailResDir.get().dir("drawable-nodpi").asFile
         drawableDir.mkdirs()
-        val decoder = Base64.getDecoder()
 
         drawableDir.resolve("imail_launcher.webp").writeBytes(
-            decoder.decode(launcherSource.readText().trim())
+            decodeWebpBase64(
+                launcherSource.readText(),
+                "iMail launcher artwork",
+            )
         )
 
         val splashBase64 = buildString {
-            append(splashSource1.readText().trim())
-            append(splashSource2.readText().trim())
+            append(splashSource1.readText())
+            append(splashSource2.readText())
         }
         drawableDir.resolve("imail_splash.webp").writeBytes(
-            decoder.decode(splashBase64)
+            decodeWebpBase64(
+                splashBase64,
+                "iMail splash artwork",
+            )
         )
     }
 }
