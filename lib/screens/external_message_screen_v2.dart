@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../branding.dart';
+import '../widgets/linkified_text.dart';
 import 'external_compose_screen.dart';
 
 class ExternalMessageScreen extends StatefulWidget {
@@ -298,7 +299,7 @@ class _ExternalMessageScreenState extends State<ExternalMessageScreen> {
               child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
             )
           else if (body.isNotEmpty)
-            SelectableText(
+            LinkifiedSelectableText(
               body,
               style: const TextStyle(fontSize: 16, height: 1.62, color: Color(0xFF202124)),
             )
