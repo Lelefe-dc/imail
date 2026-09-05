@@ -7,6 +7,7 @@ import '../mail_account_api.dart';
 import '../mail_cache.dart';
 import '../mail_preferences.dart';
 import '../mail_store.dart';
+import 'external_accounts_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key, required this.store});
@@ -203,6 +204,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _manageConnectedAccounts() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ExternalAccountsScreen()),
+    );
+  }
+
   String _label(String value) {
     switch (value) {
       case 'archive':
@@ -362,6 +369,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             : 'iMail account',
                       ),
                       subtitle: Text(widget.store.address ?? ''),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.manage_accounts_outlined),
+                      title: const Text('Manage connected accounts'),
+                      subtitle: const Text('Add or remove saved mail accounts from this device'),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: _manageConnectedAccounts,
                     ),
                     ListTile(
                       leading: const Icon(Icons.badge_outlined),
