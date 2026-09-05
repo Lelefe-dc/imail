@@ -1,0 +1,35 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="IMail.Desktop.ExternalSetupWindow"
+        Title="Connect another mailbox" Width="560" Height="650" MinWidth="520" MinHeight="560"
+        WindowStartupLocation="CenterOwner">
+  <ScrollViewer>
+    <StackPanel Margin="28" Spacing="12">
+      <TextBlock Text="Connect another mailbox" FontSize="24" FontWeight="SemiBold"/>
+      <TextBlock Text="iMail verifies secure incoming and outgoing mail through the !THUTE mail service. Standard settings are tried first; manual settings remain available when needed." TextWrapping="Wrap" Foreground="#667085" Margin="0,0,0,8"/>
+      <TextBox x:Name="NameBox" Watermark="Your name (optional)"/>
+      <TextBox x:Name="EmailBox" Watermark="Email address" LostFocus="EmailBox_LostFocus"/>
+      <TextBox x:Name="PasswordBox" Watermark="Mailbox password" PasswordChar="●"/>
+      <Button Content="Use standard domain settings" HorizontalAlignment="Left" Click="Defaults_Click"/>
+      <Separator Margin="0,4"/>
+      <TextBlock Text="Mail server settings" FontWeight="SemiBold"/>
+      <TextBox x:Name="UsernameBox" Watermark="Username (normally full email address)"/>
+      <Grid ColumnDefinitions="*,110" ColumnSpacing="8">
+        <TextBox x:Name="ImapHostBox" Watermark="Incoming server"/>
+        <TextBox Grid.Column="1" x:Name="ImapPortBox" Watermark="IMAP port" Text="993"/>
+      </Grid>
+      <ComboBox x:Name="ImapSecurityBox" SelectedIndex="0"><ComboBoxItem Content="SSL/TLS" Tag="ssl"/><ComboBoxItem Content="STARTTLS" Tag="starttls"/></ComboBox>
+      <Grid ColumnDefinitions="*,110" ColumnSpacing="8">
+        <TextBox x:Name="SmtpHostBox" Watermark="Outgoing server"/>
+        <TextBox Grid.Column="1" x:Name="SmtpPortBox" Watermark="SMTP port" Text="587"/>
+      </Grid>
+      <ComboBox x:Name="SmtpSecurityBox" SelectedIndex="1"><ComboBoxItem Content="SSL/TLS" Tag="ssl"/><ComboBoxItem Content="STARTTLS" Tag="starttls"/></ComboBox>
+      <ProgressBar x:Name="Progress" IsVisible="False" IsIndeterminate="True" Height="3" Margin="0,6,0,0"/>
+      <TextBlock x:Name="StatusText" Foreground="#667085" TextWrapping="Wrap"/>
+      <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,8,0,0">
+        <Button Classes="primary" Content="Verify and connect" Height="42" Width="160" HorizontalContentAlignment="Center" Click="Connect_Click"/>
+        <Button Content="Cancel" Width="90" Click="Cancel_Click"/>
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</Window>
