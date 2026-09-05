@@ -16,6 +16,7 @@ import '../models.dart';
 import 'compose_screen.dart';
 import 'conversation_screen.dart';
 import 'external_account_setup_screen.dart';
+import 'external_mailbox_screen.dart';
 import 'message_screen.dart';
 import 'settings_screen.dart';
 
@@ -370,6 +371,18 @@ class _HomeScreenState extends State<HomeScreen> {
     await _switchExternalFromPage(replacement);
   }
 
+  Future<void> _openDirectExternal(MailAccount account) async {
+    if (!mounted) return;
+    final store = context.read<MailStore>();
+    store.error = null;
+    store.notifyListeners();
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ExternalMailboxScreen(account: account),
+      ),
+    );
+  }
+
   Future<void> _switchExternal(MailAccount account) async {
     final authentication = account.incoming.authentication;
     if (authentication is! PlainAuthentication) {
@@ -380,17 +393,14 @@ class _HomeScreenState extends State<HomeScreen> {
     final store = context.read<MailStore>();
     try {
       await store.login(account.email, authentication.password);
+      return;
     } on ApiException {
-      final synced = await _accountStore.syncKnownAccount(account);
-      if (!synced) {
-        await _resetExternalAccount(account);
-        return;
-      }
-      try {
-        await store.login(account.email, authentication.password);
-      } on ApiException {
-        await _resetExternalAccount(account);
-      }
+      // The mailbox may be reachable from the phone even when the Mailbox-DNS
+      // bridge cannot currently reach that provider. Keep the account usable
+      // by opening its already-verified direct IMAP/SMTP connection instead of
+      // falling through to the hosted-mailbox login and showing a false error.
+      unawaited(_accountStore.syncKnownAccount(account));
+      await _openDirectExternal(account);
     }
   }
 
@@ -411,8 +421,12 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     try {
       await context.read<MailStore>().login(account.email, auth.password);
-    } on ApiException catch (e) {
-      _toast(e.message);
+      return;
+    } on ApiException {
+      // Setup has already verified this account directly on the device. If the
+      // server-side bridge is unavailable, open the verified mailbox directly
+      // rather than reporting the unrelated hosted-mailbox IMAP error.
+      await _openDirectExternal(account);
     }
   }
 
