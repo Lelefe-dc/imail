@@ -1,0 +1,35 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="IMail.Desktop.ComposeWindow"
+        Title="New message" Width="720" Height="650" MinWidth="560" MinHeight="500"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="20">
+    <Grid Grid.Row="0" ColumnDefinitions="70,*" Margin="0,0,0,8">
+      <TextBlock Text="To" VerticalAlignment="Center" Foreground="#667085"/>
+      <TextBox Grid.Column="1" x:Name="ToBox" Watermark="recipient@example.com"/>
+    </Grid>
+    <Grid Grid.Row="1" ColumnDefinitions="70,*,70,*" Margin="0,0,0,8">
+      <TextBlock Text="Cc" VerticalAlignment="Center" Foreground="#667085"/>
+      <TextBox Grid.Column="1" x:Name="CcBox"/>
+      <TextBlock Grid.Column="2" Text="Bcc" VerticalAlignment="Center" Foreground="#667085" Margin="14,0,0,0"/>
+      <TextBox Grid.Column="3" x:Name="BccBox"/>
+    </Grid>
+    <Grid Grid.Row="2" ColumnDefinitions="70,*" Margin="0,0,0,8">
+      <TextBlock Text="Subject" VerticalAlignment="Center" Foreground="#667085"/>
+      <TextBox Grid.Column="1" x:Name="SubjectBox"/>
+    </Grid>
+    <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8" Margin="70,0,0,8">
+      <Button Content="Attach files" Click="Attach_Click"/>
+      <TextBlock x:Name="AttachmentText" VerticalAlignment="Center" Foreground="#667085"/>
+    </StackPanel>
+    <TextBox Grid.Row="4" x:Name="BodyBox" AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top" Watermark="Write a message…"/>
+    <Grid Grid.Row="5" ColumnDefinitions="Auto,*,Auto" Margin="0,14,0,0">
+      <Button Classes="primary" Content="Send" Width="100" Height="40" HorizontalContentAlignment="Center" Click="Send_Click"/>
+      <Button Grid.Column="1" Content="Save draft" Width="110" HorizontalAlignment="Left" Margin="10,0,0,0" Click="Draft_Click"/>
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+        <ProgressBar x:Name="Progress" IsVisible="False" IsIndeterminate="True" Width="70" Height="3" VerticalAlignment="Center"/>
+        <TextBlock x:Name="StatusText" Foreground="#B42318" VerticalAlignment="Center"/>
+      </StackPanel>
+    </Grid>
+  </Grid>
+</Window>
