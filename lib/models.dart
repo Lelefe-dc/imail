@@ -132,16 +132,13 @@ class MailFolder {
   final int totalCount;
   final int unreadCount;
 
-  /// Gmail-like drawer semantics: folders whose important number is unread
-  /// show unread, while Sent/Drafts/Trash show the real number of messages.
+  /// Drawer rows show the real number of messages in ordinary folders. This is
+  /// important for Inbox: opening a message must not make its drawer count
+  /// disappear just because it became read. Category rows still represent new
+  /// mail, so they continue to use unread counts.
   int get count {
     final lower = name.toLowerCase();
-    if (lower == 'inbox' ||
-        lower == 'junk' ||
-        lower == 'spam' ||
-        lower == 'updates' ||
-        lower == 'promotions' ||
-        lower == 'social') {
+    if (lower == 'updates' || lower == 'promotions' || lower == 'social') {
       return unreadCount;
     }
     return totalCount;
