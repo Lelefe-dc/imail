@@ -300,6 +300,76 @@ class _HomeScreenState extends State<HomeScreen> {
     return text.isEmpty ? 'I' : text[0].toUpperCase();
   }
 
+  Future<bool> _confirmRemoveExternal(MailAccount account) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Remove account from iMail?'),
+        content: Text(
+          '${account.email} will be removed from this device. The mailbox and its messages will stay on the mail server, so you can connect it again from scratch.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Remove account'),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
+  Future<void> _removeExternalAccount(
+    MailAccount account, {
+    bool closeSheet = true,
+  }) async {
+    if (!await _confirmRemoveExternal(account)) return;
+    await _accountStore.removeAccount(account.email);
+    if (!mounted) return;
+    if (closeSheet) {
+      Navigator.of(context).pop();
+    }
+    _toast('${account.email} was removed from iMail. You can connect it again from scratch.');
+  }
+
+  Future<void> _resetExternalAccount(MailAccount account) async {
+    if (!mounted) return;
+    final reset = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Saved connection could not be used'),
+        content: Text(
+          'iMail could not reconnect ${account.email} with its saved connection. Remove the saved account and connect it again from scratch?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Keep account'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Remove and reconnect'),
+          ),
+        ],
+      ),
+    );
+    if (reset != true) return;
+
+    await _accountStore.removeAccount(account.email);
+    if (!mounted) return;
+    _toast('Old saved connection removed. Enter the account again with fresh settings.');
+
+    final replacement = await Navigator.of(context).push<MailAccount>(
+      MaterialPageRoute(builder: (_) => const ExternalAccountSetupScreen()),
+    );
+    if (replacement == null || !mounted) return;
+    await _switchExternalFromPage(replacement);
+  }
+
   Future<void> _switchExternal(MailAccount account) async {
     final authentication = account.incoming.authentication;
     if (authentication is! PlainAuthentication) {
@@ -313,13 +383,13 @@ class _HomeScreenState extends State<HomeScreen> {
     } on ApiException {
       final synced = await _accountStore.syncKnownAccount(account);
       if (!synced) {
-        _toast('Could not reconnect this account. Open account setup and verify it again.');
+        await _resetExternalAccount(account);
         return;
       }
       try {
         await store.login(account.email, authentication.password);
-      } on ApiException catch (e) {
-        _toast(e.message);
+      } on ApiException {
+        await _resetExternalAccount(account);
       }
     }
   }
@@ -392,6 +462,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     subtitle: Text(account.email),
+                    trailing: IconButton(
+                      tooltip: 'Remove account',
+                      onPressed: () => _removeExternalAccount(account),
+                      icon: const Icon(
+                        Icons.delete_outline_rounded,
+                        color: Color(0xFFB3261E),
+                      ),
+                    ),
                     onTap: () => _switchExternal(account),
                   ),
               const Divider(),
