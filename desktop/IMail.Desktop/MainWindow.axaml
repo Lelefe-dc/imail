@@ -1,0 +1,134 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="IMail.Desktop.MainWindow"
+        Title="iMail" Width="1440" Height="900" MinWidth="900" MinHeight="620"
+        WindowStartupLocation="CenterScreen">
+  <Grid>
+    <Grid x:Name="LoginView" Background="#F3F6FC">
+      <Border Width="430" Padding="34" Background="White" CornerRadius="22" HorizontalAlignment="Center" VerticalAlignment="Center" BoxShadow="0 12 40 0 #22000000">
+        <StackPanel Spacing="16">
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10">
+            <Border Width="54" Height="54" CornerRadius="14" Background="#064A34">
+              <TextBlock Text="✉" Foreground="White" FontSize="30" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="iMail" FontSize="30" FontWeight="Bold" Foreground="#064A34"/>
+              <TextBlock Text="ithute mail" FontSize="12" Foreground="#8B6E1F"/>
+            </StackPanel>
+          </StackPanel>
+          <TextBlock Text="Open your mailbox" FontSize="22" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,12,0,2"/>
+          <TextBlock Text="Hosted and previously connected mailboxes use the same sign-in." TextWrapping="Wrap" TextAlignment="Center" Foreground="#667085"/>
+          <TextBox x:Name="EmailBox" Watermark="Email address"/>
+          <TextBox x:Name="PasswordBox" Watermark="Mailbox password" PasswordChar="●"/>
+          <Button Classes="primary" Content="Open mailbox" Height="44" HorizontalContentAlignment="Center" Click="Login_Click"/>
+          <Button Content="Connect a new external mailbox" Height="40" HorizontalContentAlignment="Center" Click="ExternalSetup_Click"/>
+          <ProgressBar x:Name="LoginProgress" IsVisible="False" IsIndeterminate="True" Height="3"/>
+          <TextBlock x:Name="LoginError" Foreground="#B42318" TextWrapping="Wrap" IsVisible="False"/>
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <Grid x:Name="MailView" IsVisible="False" RowDefinitions="64,*">
+      <Border Grid.Row="0" Background="White" BorderBrush="#E7ECE9" BorderThickness="0,0,0,1">
+        <Grid ColumnDefinitions="240,*,Auto" Margin="18,10">
+          <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+            <Border Width="40" Height="40" CornerRadius="11" Background="#064A34"><TextBlock Text="✉" Foreground="White" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+            <TextBlock Text="iMail" Foreground="#064A34" FontSize="22" FontWeight="Bold" VerticalAlignment="Center"/>
+          </StackPanel>
+          <Border Grid.Column="1" MaxWidth="760" Background="#F3F6FC" CornerRadius="22" Padding="14,7" HorizontalAlignment="Stretch">
+            <Grid ColumnDefinitions="Auto,*">
+              <TextBlock Text="⌕" FontSize="23" Foreground="#667085" VerticalAlignment="Center" Margin="2,0,10,0"/>
+              <TextBox Grid.Column="1" x:Name="SearchBox" Watermark="Search mail" Background="Transparent" BorderThickness="0" KeyUp="SearchBox_KeyUp"/>
+            </Grid>
+          </Border>
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <Button Content="↻" Width="38" Height="38" ToolTip.Tip="Refresh" Click="Refresh_Click"/>
+            <Button Content="⚙" Width="38" Height="38" ToolTip.Tip="Settings" Click="Settings_Click"/>
+            <Button x:Name="AccountButton" Content="A" Width="38" Height="38" CornerRadius="19" Background="#D8AD3D" Foreground="#173C2D" Click="Account_Click"/>
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <Grid Grid.Row="1" x:Name="DesktopGrid" ColumnDefinitions="240,390,*">
+        <Border Grid.Column="0" Background="#F8FAF9" BorderBrush="#E7ECE9" BorderThickness="0,0,1,0" Padding="12">
+          <DockPanel LastChildFill="True">
+            <Button DockPanel.Dock="Top" Classes="primary" Height="48" Content="＋  Compose" FontSize="15" Margin="4,8,4,18" Click="Compose_Click"/>
+            <StackPanel DockPanel.Dock="Bottom" Margin="4,12,4,8" Spacing="5">
+              <Separator/>
+              <TextBlock x:Name="AccountAddressText" FontSize="12" Foreground="#667085" TextWrapping="Wrap" Margin="8,6"/>
+              <Button Classes="nav" Content="Sign out" Click="Logout_Click"/>
+            </StackPanel>
+            <ScrollViewer>
+              <StackPanel x:Name="FolderPanel" Spacing="2"/>
+            </ScrollViewer>
+          </DockPanel>
+        </Border>
+
+        <Border Grid.Column="1" Background="White" BorderBrush="#E7ECE9" BorderThickness="0,0,1,0">
+          <Grid RowDefinitions="58,*">
+            <Grid Margin="16,10" ColumnDefinitions="*,Auto">
+              <StackPanel>
+                <TextBlock x:Name="FolderTitle" Text="Inbox" FontWeight="SemiBold" FontSize="18"/>
+                <TextBlock x:Name="FolderSubtitle" Foreground="#667085" FontSize="11"/>
+              </StackPanel>
+              <ProgressBar Grid.Column="1" x:Name="MailProgress" IsVisible="False" IsIndeterminate="True" Width="46" Height="3" VerticalAlignment="Center"/>
+            </Grid>
+            <ListBox Grid.Row="1" x:Name="MessageList" SelectionChanged="MessageList_SelectionChanged" BorderThickness="0">
+              <ListBox.ItemTemplate>
+                <DataTemplate>
+                  <Border Padding="14,12" BorderBrush="#EEF1EF" BorderThickness="0,0,0,1" Background="Transparent">
+                    <Grid ColumnDefinitions="42,*,Auto" RowDefinitions="Auto,Auto,Auto">
+                      <Border Grid.RowSpan="3" Width="34" Height="34" CornerRadius="17" Background="#E6F0EB" VerticalAlignment="Top">
+                        <TextBlock Text="{Binding SenderInitial}" Foreground="#064A34" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                      </Border>
+                      <TextBlock Grid.Column="1" Text="{Binding Sender}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                      <TextBlock Grid.Column="2" Text="{Binding DisplayDate}" Foreground="#667085" FontSize="11"/>
+                      <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Subject}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,3,0,0"/>
+                      <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Preview}" Foreground="#667085" FontSize="12" TextTrimming="CharacterEllipsis" MaxWidth="285"/>
+                      <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding Star}" Foreground="#B18825" FontSize="17"/>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </Grid>
+        </Border>
+
+        <Border Grid.Column="2" Background="White">
+          <Grid x:Name="ReaderEmpty">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+              <TextBlock Text="✉" FontSize="54" Foreground="#B8C4BE" HorizontalAlignment="Center"/>
+              <TextBlock Text="Select a message to read" Foreground="#667085" FontSize="15"/>
+            </StackPanel>
+          </Grid>
+          <Grid x:Name="ReaderView" IsVisible="False" RowDefinitions="Auto,Auto,*,Auto">
+            <Grid Margin="24,20,24,8" ColumnDefinitions="*,Auto">
+              <TextBlock x:Name="ReaderSubject" FontSize="24" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,14,0"/>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                <Button Content="☆" ToolTip.Tip="Star" Click="Star_Click"/>
+                <Button Content="Archive" Click="Archive_Click"/>
+                <Button Content="Delete" Click="Delete_Click"/>
+              </StackPanel>
+            </Grid>
+            <Grid Grid.Row="1" Margin="24,5,24,16" ColumnDefinitions="48,*,Auto">
+              <Border Width="38" Height="38" CornerRadius="19" Background="#E6F0EB"><TextBlock x:Name="ReaderInitial" Foreground="#064A34" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+              <StackPanel Grid.Column="1">
+                <TextBlock x:Name="ReaderSender" FontWeight="SemiBold"/>
+                <TextBlock x:Name="ReaderRecipients" FontSize="11" Foreground="#667085" TextWrapping="Wrap"/>
+              </StackPanel>
+              <TextBlock Grid.Column="2" x:Name="ReaderDate" Foreground="#667085" FontSize="11"/>
+            </Grid>
+            <ScrollViewer Grid.Row="2" Margin="24,0,24,16">
+              <TextBlock x:Name="ReaderBody" TextWrapping="Wrap" FontSize="14" LineHeight="22"/>
+            </ScrollViewer>
+            <StackPanel Grid.Row="3" Margin="24,10,24,22" Orientation="Horizontal" Spacing="8">
+              <Button Classes="primary" Content="↩ Reply" Click="Reply_Click"/>
+              <Button Content="↪ Forward" Click="Forward_Click"/>
+              <Button Content="Mark unread" Click="Unread_Click"/>
+            </StackPanel>
+          </Grid>
+        </Border>
+      </Grid>
+    </Grid>
+  </Grid>
+</Window>
