@@ -17,6 +17,7 @@ dependencies:
   http: ^1.2.2
   intl: ^0.20.2
   provider: ^6.1.2
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
