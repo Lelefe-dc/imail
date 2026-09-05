@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
@@ -13,8 +14,8 @@ public sealed class MailMessage
 {
     [JsonPropertyName("uid")] public string Uid { get; set; } = "";
     [JsonPropertyName("from")] public string From { get; set; } = "";
-    [JsonPropertyName("to")] public string To { get; set; } = "";
-    [JsonPropertyName("cc")] public string Cc { get; set; } = "";
+    [JsonPropertyName("to"), JsonConverter(typeof(RecipientListConverter))] public List<string> To { get; set; } = [];
+    [JsonPropertyName("cc"), JsonConverter(typeof(RecipientListConverter))] public List<string> Cc { get; set; } = [];
     [JsonPropertyName("reply_to")] public string ReplyTo { get; set; } = "";
     [JsonPropertyName("subject")] public string Subject { get; set; } = "(No subject)";
     [JsonPropertyName("date")] public string DateRaw { get; set; } = "";
@@ -54,6 +55,36 @@ public sealed class MailMessage
     public string Preview => string.IsNullOrWhiteSpace(Snippet) ? BodyText.Replace("\r", " ").Replace("\n", " ") : Snippet;
     public string DisplayDate => DateTimeOffset.TryParse(DateRaw, out var value) ? value.LocalDateTime.ToString("MMM d, HH:mm") : DateRaw;
     public string Star => Flagged ? "★" : "☆";
+}
+
+public sealed class RecipientListConverter : JsonConverter<List<string>>
+{
+    public override List<string> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.StartArray)
+        {
+            var values = new List<string>();
+            while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+                if (reader.TokenType == JsonTokenType.String && reader.GetString() is { Length: > 0 } value) values.Add(value);
+            return values;
+        }
+        if (reader.TokenType == JsonTokenType.String)
+            return Split(reader.GetString());
+        if (reader.TokenType == JsonTokenType.Null) return [];
+        using var doc = JsonDocument.ParseValue(ref reader);
+        return Split(doc.RootElement.ToString());
+    }
+
+    public override void Write(Utf8JsonWriter writer, List<string> value, JsonSerializerOptions options)
+    {
+        writer.WriteStartArray();
+        foreach (var item in value) writer.WriteStringValue(item);
+        writer.WriteEndArray();
+    }
+
+    private static List<string> Split(string? value) => (value ?? "")
+        .Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .ToList();
 }
 
 public sealed class MailAttachment
