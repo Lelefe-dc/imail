@@ -24,7 +24,7 @@ class LinkifiedSelectableText extends StatefulWidget {
 
 class _LinkifiedSelectableTextState extends State<LinkifiedSelectableText> {
   static final RegExp _urlPattern = RegExp(
-    r'(?:(?:https?://)|(?:www\.))[\w\-._~:/?#\[\]@!$&\'()*+,;=%]+',
+    r"(?:(?:https?://)|(?:www\.))[\w\-._~:/?#\[\]@!$&'()*+,;=%]+",
     caseSensitive: false,
   );
 
