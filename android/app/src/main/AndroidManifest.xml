@@ -3,7 +3,8 @@
     <application
         android:label="iMail"
         android:name="${applicationName}"
-        android:icon="@drawable/ic_launcher"
+        android:icon="@drawable/imail_launcher"
+        android:roundIcon="@drawable/imail_launcher"
         android:usesCleartextTraffic="false">
         <activity
             android:name=".MainActivity"
