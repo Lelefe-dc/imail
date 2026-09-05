@@ -8,6 +8,6 @@
     <item>
         <bitmap
             android:src="@drawable/imail_splash"
-            android:gravity="fill" />
+            android:gravity="center" />
     </item>
 </layer-list>
