@@ -89,30 +89,7 @@ class _IMailBootScreen extends StatelessWidget {
       backgroundColor: Color(0xFFF3F6FC),
       body: SafeArea(
         child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IMailLogo(width: 255),
-              SizedBox(height: 24),
-              SizedBox(
-                width: 28,
-                height: 28,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.2,
-                  color: imailGreen,
-                ),
-              ),
-              SizedBox(height: 14),
-              Text(
-                'Opening your mail…',
-                style: TextStyle(
-                  color: Color(0xFF667085),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
+          child: IMailLogo(width: 300),
         ),
       ),
     );
