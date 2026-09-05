@@ -4,8 +4,8 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
-using Avalonia.Markup.Xaml;
 using Avalonia.Media;
+using Avalonia.Threading;
 
 namespace IMail.Desktop;
 
@@ -16,6 +16,7 @@ public partial class MainWindow : Window
     private string _folder = "INBOX";
     private MailMessage? _selected;
     private CancellationTokenSource? _searchCts;
+    private CancellationTokenSource? _realtimeCts;
 
     public MainWindow()
     {
@@ -23,6 +24,7 @@ public partial class MainWindow : Window
         MessageList.ItemsSource = _messages;
         SizeChanged += (_, _) => ApplyResponsiveLayout();
         Opened += (_, _) => ApplyResponsiveLayout();
+        Closed += (_, _) => { _searchCts?.Cancel(); _realtimeCts?.Cancel(); };
     }
 
     private async void Login_Click(object? sender, RoutedEventArgs e)
@@ -50,6 +52,37 @@ public partial class MainWindow : Window
         MailView.IsVisible = true;
         await LoadFoldersAsync();
         await LoadMessagesAsync();
+        StartRealtime();
+    }
+
+    private void StartRealtime()
+    {
+        _realtimeCts?.Cancel();
+        _realtimeCts = new CancellationTokenSource();
+        _ = RealtimeLoopAsync(_realtimeCts.Token);
+    }
+
+    private async Task RealtimeLoopAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested && !string.IsNullOrWhiteSpace(_api.Address))
+        {
+            try
+            {
+                await foreach (var _ in _api.RealtimeEventsAsync(ct))
+                {
+                    await Dispatcher.UIThread.InvokeAsync(async () =>
+                    {
+                        await LoadFoldersAsync();
+                        await LoadMessagesAsync();
+                    });
+                }
+            }
+            catch (OperationCanceledException) { break; }
+            catch
+            {
+                try { await Task.Delay(TimeSpan.FromSeconds(5), ct); } catch (OperationCanceledException) { break; }
+            }
+        }
     }
 
     private async Task LoadFoldersAsync()
@@ -188,11 +221,12 @@ public partial class MainWindow : Window
 
     private async void Settings_Click(object? sender, RoutedEventArgs e)
     {
-        await ShowInfoAsync("iMail settings", $"Signed in as {_api.Address}\n\nDesktop iMail automatically uses the secure Mailbox-DNS API, remembers no mailbox password, and supports hosted and connected mailboxes through the same interface.\n\nAPI: https://api.ithute.co.ls/api/v1");
+        await ShowInfoAsync("iMail settings", $"Signed in as {_api.Address}\n\nDesktop iMail uses the secure Mailbox-DNS API and realtime WebSocket events. It does not persist your mailbox password. Hosted and previously connected mailboxes use the same interface.\n\nAPI: https://api.ithute.co.ls/api/v1");
     }
 
     private async void Logout_Click(object? sender, RoutedEventArgs e)
     {
+        _realtimeCts?.Cancel();
         await _api.LogoutAsync(); _messages.Clear(); MailView.IsVisible = false; LoginView.IsVisible = true; ReaderView.IsVisible = false; ReaderEmpty.IsVisible = true; EmailBox.Focus();
     }
 
